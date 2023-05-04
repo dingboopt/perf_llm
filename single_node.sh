@@ -18,19 +18,16 @@ N_GPUS=8
 # global-batch-size should divisible by micro-batch-size times data-parallel-size
 
 
-GPU_ID=$1
-GLOBAL_BATCH_SIZE=$2
-MICRO_BATCH_SIZE=$3
-NLAYERS=$4
-NHIDDEN=$5
-NHEADS=$6
-SEQ_LEN=$7
-MASTER_PORT=$8
-HOSTNAME=$9
+GLOBAL_BATCH_SIZE=$1
+MICRO_BATCH_SIZE=$2
+NLAYERS=$3
+NHIDDEN=$4
+NHEADS=$5
+SEQ_LEN=$6
 
 # NGPU = TP_SIZE*PP_SIZE*DP_SIZE
-TP_SIZE=1
-PP_SIZE=1
+TP_SIZE=$7
+PP_SIZE=$8
 
 
 # llama config in huggingface
@@ -146,7 +143,7 @@ export LAUNCHER="python -u -m torch.distributed.launch \
 !
 
 export LAUNCHER="deepspeed --hostfile=hostfile --no_ssh_check"
-export LAUNCHER="deepspeed  --include=localhost:${GPU_ID} --master_port ${MASTER_PORT} --no_ssh_check "
+export LAUNCHER="deepspeed  --include=localhost  --no_ssh_check "
 export CMD=" \
     $LAUNCHER pretrain_gpt.py \
     --tensor-model-parallel-size $TP_SIZE \

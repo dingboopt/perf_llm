@@ -1,44 +1,40 @@
 #!/bin/bash
 
-
-
 DATE=`date '+%Y-%m-%d'`
 
 # CHECKPOINT_PATH=/workspace/workspace/yanchao/yanc/bloom-1b1-optimizer-states
 # use in docker, need -v when launch docker
-
+CHECKPOINT_PATH=/workspace/bloomz-mt-176
+SAVE_CHECKPOINT_PATH=/workspace/output_dir/$DATE/bloomz-mt-176-pretrain
 DATA_PATH=data/alpaca_belle_cot_suffle/alpaca_belle_cot_suffle_text_document
-
+TENSORBOARD_PATH=/workspace/output_dir/tensorboard/$DATE-bloomz-mt-176-pretrain
 
 KILL_SWITCH_PATH=/workspace/output_dir/kill-switch-tr11-176B-pretrain-exp1
 
-
+mkdir -p $SAVE_CHECKPOINT_PATH
+mkdir -p $TENSORBOARD_PATH
 
 N_GPUS=8
 # global-batch-size should divisible by micro-batch-size times data-parallel-size
 
-
-GPU_ID=$1
-GLOBAL_BATCH_SIZE=$2
-MICRO_BATCH_SIZE=$3
-NLAYERS=$4
-NHIDDEN=$5
-NHEADS=$6
-SEQ_LEN=$7
-MASTER_PORT=$8
-HOSTNAME=$9
-
+MICRO_BATCH_SIZE=4
+GLOBAL_BATCH_SIZE=256
 # NGPU = TP_SIZE*PP_SIZE*DP_SIZE
-TP_SIZE=1
-PP_SIZE=1
+TP_SIZE=8
+PP_SIZE=8
 
+NLAYERS=70
+NHIDDEN=14336
+NHEADS=112
+#SEQ_LEN=512
+SEQ_LEN=1024
 
 # llama config in huggingface
 # "pad_token_id": -1, "rms_norm_eps": 1e-06,
 # "bos_token_id": 0, "eos_token_id": 1, "hidden_act": "silu"
 # "vocab_size": 32000
 
-	
+
 # 1 epoch need iter: 5287827/(2048*16)=161.37 iter
 SAVE_INTERVAL=2200
 
@@ -72,7 +68,7 @@ GPT_ARGS=" \
     --micro-batch-size $MICRO_BATCH_SIZE \
     --global-batch-size $GLOBAL_BATCH_SIZE \
     --tokenizer-type PretrainedFromHF \
-    --tokenizer-name-or-path ./tokenizer \
+    --tokenizer-name-or-path /workspace/yanc/tokenizer \
     --init-method-std 0.0048 \
     --embed-layernorm \
     --pad-id 3 \
@@ -96,7 +92,11 @@ OUTPUT_ARGS=" \
     --eval-iters 1 \
     --train-iters=$TRAIN_ITERS
     --lr-warmup-iters=$LR_WARMUP_ITERS
-
+    --tensorboard-dir $TENSORBOARD_PATH \
+    --tensorboard-queue-size 5 \
+    --log-timers-to-tensorboard \
+    --log-batch-size-to-tensorboard \
+    --log-validation-ppl-to-tensorboard \
     "
 
 ZERO_STAGE=0
@@ -146,7 +146,6 @@ export LAUNCHER="python -u -m torch.distributed.launch \
 !
 
 export LAUNCHER="deepspeed --hostfile=hostfile --no_ssh_check"
-export LAUNCHER="deepspeed  --include=localhost:${GPU_ID} --master_port ${MASTER_PORT} --no_ssh_check "
 export CMD=" \
     $LAUNCHER pretrain_gpt.py \
     --tensor-model-parallel-size $TP_SIZE \
@@ -154,6 +153,8 @@ export CMD=" \
     $GPT_ARGS \
     $OUTPUT_ARGS \
     $CUSTOM_ARGS \
+    --save $SAVE_CHECKPOINT_PATH \
+    --load $CHECKPOINT_PATH \
     --data-path $DATA_PATH \
     --data-impl mmap \
     --split 949,50,1 \
@@ -178,11 +179,11 @@ export NCCL_DEBUG=INFO
 #export NCCL_P2P_LEVEL=NVL
 #export NCCL_P2P_DISABLE=1
 #export NCCL_IB_DISABLE=1
-export UCX_NET_DEVICES=bond0
+
 #export NCCL_SOCKET_IFNAME=eth1,eth2,eth3,eth4,eth5,eth6,eth7,eth8
 export NCCL_IB_HCA=mlx5_1,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8
 export NCCL_IB_TIMEOUT=23
-#export NCCL_IB_GID_INDEX=3   # 走roce v2 协议
+export NCCL_IB_GID_INDEX=3   # 走roce v2 协议
 #export NCCL_IB_TC=128
 
 
@@ -190,6 +191,4 @@ echo $CMD
 
 HOUR=`date '+%H-%M-%S'`
 
-mkdir -p test_single_${HOSTNAME}_${GPU_ID}_${GLOBAL_BATCH_SIZE}_${MICRO_BATCH_SIZE}_${NLAYERS}_${NHIDDEN}_${NHEADS}_${SEQ_LEN}
-
-$CMD  2>&1 | tee test_single_${HOSTNAME}_${GPU_ID}_${GLOBAL_BATCH_SIZE}_${MICRO_BATCH_SIZE}_${NLAYERS}_${NHIDDEN}_${NHEADS}_${SEQ_LEN}/test_single_${GPU_ID}_${GLOBAL_BATCH_SIZE}_${MICRO_BATCH_SIZE}_${NLAYERS}_${NHIDDEN}_${NHEADS}_${SEQ_LEN}.$DATE.$HOUR.log
+$CMD  2>&1 |tee pretrain_gpt.bloomz-176b.$DATE.$HOUR.log
