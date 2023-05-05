@@ -36,7 +36,7 @@ for i in range(4):
         cmdPara = str(j) + ' ' + cmdPara + str(j+60000) + ' ' +hosts[i]+' '
         #print(cmdPara)
         #cmd = f"docker exec dps_node  bash -c 'cd /mnt/md0/db/workspace/cw_train_3 && ./8tp.sh {cmdPara} ' &"
-        cmd = f"./8tp.sh {cmdPara} &"
+        cmd = f"./singel_gpu.sh {cmdPara} &"
         print(cmd)
 
         os.system(f"""ssh root@{hosts[i]} "docker exec dps_node  bash -c 'cd /mnt/md0/db/workspace/cw_train_3 && ./8tp.sh {cmdPara} ' " &""")
